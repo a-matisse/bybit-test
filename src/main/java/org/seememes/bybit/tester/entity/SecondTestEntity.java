@@ -24,7 +24,9 @@ public class SecondTestEntity {
         this.time = time;
         this.predictedTrend = predictedTrend;
         this.actualTrend = actualTrend;
+        this.priceChange = priceChange;
         this.predictedAccuracy = predictedAccuracy;
+        this.actualAccuracy = actualAccuracy;
     }
 
     public SecondTestEntity() {
@@ -89,7 +91,7 @@ public class SecondTestEntity {
     @Override
     public String toString() {
         return "time: " + time +
-                " | " + predictedTrend + " != " + actualTrend +
+                " | " + predictedTrend + (predictedTrend.equals(actualTrend) ? " == " : " != ") + actualTrend +
                 " | Price change: " + priceChange +
                 " | Predicted accuracy: " + predictedAccuracy +
                 " | Actual accuracy: " + actualAccuracy;
