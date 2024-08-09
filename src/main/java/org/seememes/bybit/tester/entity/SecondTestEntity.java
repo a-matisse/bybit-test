@@ -1,10 +1,8 @@
 package org.seememes.bybit.tester.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 
+@Entity
 public class SecondTestEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
