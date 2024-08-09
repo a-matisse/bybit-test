@@ -19,6 +19,8 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.seememes.bybit.tester.dto.ByBitMarkAnswerDto;
+import org.seememes.bybit.tester.entity.SecondTestEntity;
+import org.seememes.bybit.tester.repository.SecondTestEntityRepository;
 import org.seememes.bybit.tester.util.FuzzyTrend;
 import org.seememes.bybit.tester.util.ItemHistory;
 import org.seememes.bybit.tester.util.StatsAnswerDto;
@@ -46,22 +48,24 @@ public class ByBitRequestService {
     private final Integer predictorWindowFirst;
     private final Integer predictorWindowLast;
     private final TestingStatsRepository testingStatsRepository;
+    private final SecondTestEntityRepository secondTestEntityRepository;
 
     public ByBitRequestService(
             @Value("${predictor.address}") String predictorLink,
             @Value("${predictor.interval}") String marketInterval,
             @Value("${predictor.window.first}") Integer predictorWindowFirst,
             @Value("${predictor.window.last}") Integer predictorWindowLast,
-            @Autowired TestingStatsRepository testingStatsRepository
-    ) {
+            @Autowired TestingStatsRepository testingStatsRepository,
+            @Autowired SecondTestEntityRepository secondTestEntityRepository
+            ) {
         this.predictorLink = predictorLink;
         this.marketInterval = marketInterval;
         this.testingStatsRepository = testingStatsRepository;
         this.predictorWindowFirst = predictorWindowFirst;
         this.predictorWindowLast = predictorWindowLast;
+        this.secondTestEntityRepository = secondTestEntityRepository;
     }
 
-    @PostConstruct
     public void testByBit() throws InterruptedException {
         int bestListSize = 30;
         double bestAccuracy = 0d;
@@ -120,7 +124,7 @@ public class ByBitRequestService {
                 }
             }
             double curAccuracy = (double) successNum / allNum;
-            TestingStatsEntity testingStatsEntity = new TestingStatsEntity(listSize, curAccuracy);
+            TestingStatsEntity testingStatsEntity = new TestingStatsEntity(listSize, curAccuracy, marketInterval);
             testingStatsRepository.save(testingStatsEntity);
             if (curAccuracy > bestAccuracy) {
                 bestListSize = listSize;
@@ -136,6 +140,77 @@ public class ByBitRequestService {
                 #########################################
                 #########################################
                 """);
+    }
+
+    @PostConstruct
+    public void alternativeByBitTest() throws InterruptedException {
+        int bestListSize = 30;
+        double bestAccuracy = 0d;
+
+        int[] variables = new int[]{64, 71, 73};
+        for (int i = 0; i < 3; i++) {
+            int listSize = variables[i];
+            List<ItemHistory> historyList = new ArrayList<>();
+
+            System.out.println("ТЕСТИРОВАНИЕ ТОЧНОСТИ ПРЕДСКАЗАНИЯ ДЛЯ BNB");
+            System.out.println("Количество точек: " + listSize);
+            System.out.println("Формат графика: " + marketInterval);
+
+            long month = 2629800000L;
+            long timeNow = System.currentTimeMillis();
+            int total = 0;
+            int allNum = 0;
+            int successNum = 0;
+            for (int j = 0; j < 12; j++) {
+                long endTime = timeNow - j * month;
+                long startTime = endTime - (j + 1) * month;
+
+                historyList.addAll(getItemHistoryForCurrencies(marketInterval, startTime, endTime));
+            }
+
+            for (int j = listSize; j < historyList.size(); j++) {
+                total += 1;
+
+                List<ItemHistory> listToPredict = historyList.subList(j - listSize, j);
+                StatsAnswerDto prediction = getPredict(listToPredict);
+
+                double firstPrice = historyList.get(j - 1).price();
+                double secondPrice = historyList.get(j).price();
+                double priceChange = firstPrice - secondPrice;
+                FuzzyTrend predictedTrend = prediction.predictedTrend();
+                FuzzyTrend actualTrend = FuzzyTrend.fromValue(
+                        firstPrice - secondPrice,
+                        0,
+                        0
+                );
+
+                allNum++;
+                boolean success = predictedTrend.equals(actualTrend);
+
+                long time = historyList.get(j).time();
+                int predicted = trendToInt(predictedTrend);
+                int actual = trendToInt(actualTrend);
+                double predictAcc = prediction.chance();
+                double actualAcc = (double) successNum / allNum;
+                SecondTestEntity secondTestEntity = new SecondTestEntity(time, predicted, actual, priceChange, predictAcc, actualAcc);
+                secondTestEntityRepository.save(secondTestEntity);
+
+                if (success) {
+                    successNum++;
+                }
+                log.info(secondTestEntity + " | " + total + "/" + historyList.size());
+            }
+            double curAccuracy = (double) successNum / allNum;
+            TestingStatsEntity testingStatsEntity = new TestingStatsEntity(listSize, curAccuracy, marketInterval);
+            testingStatsRepository.save(testingStatsEntity);
+            if (curAccuracy > bestAccuracy) {
+                bestListSize = listSize;
+                bestAccuracy = curAccuracy;
+            }
+        }
+
+        System.out.println("\nBEST ACCURACY: " + bestAccuracy);
+        System.out.println("\nBEST LIST SIZE: " + bestListSize);
     }
 
     public List<ItemHistory> getItemHistoryForCurrencies(
@@ -265,6 +340,15 @@ public class ByBitRequestService {
         } catch (ClassCastException | IllegalArgumentException e) {
             log.error(e.getMessage() + ": " + e.getCause());
             return 0L;
+        }
+    }
+
+    private int trendToInt(FuzzyTrend fuzzyTrend) {
+        switch (fuzzyTrend) {
+            case UP:
+                return 1;
+            default:
+                return 0;
         }
     }
 }

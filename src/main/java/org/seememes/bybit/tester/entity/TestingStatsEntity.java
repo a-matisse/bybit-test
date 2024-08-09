@@ -11,13 +11,16 @@ public class TestingStatsEntity {
     private Integer listSize;
     @Column
     private Double accuracy;
+    @Column
+    private String timeLimit;
 
     public TestingStatsEntity() {
     }
 
-    public TestingStatsEntity(Integer listSize, Double accuracy) {
+    public TestingStatsEntity(Integer listSize, Double accuracy, String timeLimit) {
         this.listSize = listSize;
         this.accuracy = accuracy;
+        this.timeLimit = timeLimit;
     }
 
     public void setId(Long id) {
@@ -42,5 +45,13 @@ public class TestingStatsEntity {
 
     public void setAccuracy(Double accuracy) {
         this.accuracy = accuracy;
+    }
+
+    public String getTimeLimit() {
+        return timeLimit;
+    }
+
+    public void setTimeLimit(String timeLimit) {
+        this.timeLimit = timeLimit;
     }
 }
