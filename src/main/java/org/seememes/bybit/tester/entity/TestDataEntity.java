@@ -7,7 +7,7 @@ public class TestDataEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String data;
 
     public TestDataEntity() {
