@@ -20,7 +20,9 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.seememes.bybit.tester.dto.ByBitMarkAnswerDto;
 import org.seememes.bybit.tester.entity.SecondTestEntity;
-import org.seememes.bybit.tester.repository.SecondTestEntityRepository;
+import org.seememes.bybit.tester.entity.TestDataEntity;
+import org.seememes.bybit.tester.repository.SecondTestRepository;
+import org.seememes.bybit.tester.repository.TestDataRepository;
 import org.seememes.bybit.tester.util.FuzzyTrend;
 import org.seememes.bybit.tester.util.ItemHistory;
 import org.seememes.bybit.tester.util.StatsAnswerDto;
@@ -48,7 +50,8 @@ public class ByBitRequestService {
     private final Integer predictorWindowFirst;
     private final Integer predictorWindowLast;
     private final TestingStatsRepository testingStatsRepository;
-    private final SecondTestEntityRepository secondTestEntityRepository;
+    private final SecondTestRepository secondTestRepository;
+    private final TestDataRepository testDataRepository;
 
     public ByBitRequestService(
             @Value("${predictor.address}") String predictorLink,
@@ -56,14 +59,16 @@ public class ByBitRequestService {
             @Value("${predictor.window.first}") Integer predictorWindowFirst,
             @Value("${predictor.window.last}") Integer predictorWindowLast,
             @Autowired TestingStatsRepository testingStatsRepository,
-            @Autowired SecondTestEntityRepository secondTestEntityRepository
-            ) {
+            @Autowired SecondTestRepository secondTestRepository,
+            @Autowired TestDataRepository testDataRepository
+    ) {
         this.predictorLink = predictorLink;
         this.marketInterval = marketInterval;
         this.testingStatsRepository = testingStatsRepository;
         this.predictorWindowFirst = predictorWindowFirst;
         this.predictorWindowLast = predictorWindowLast;
-        this.secondTestEntityRepository = secondTestEntityRepository;
+        this.secondTestRepository = secondTestRepository;
+        this.testDataRepository = testDataRepository;
     }
 
     public void testByBit() throws InterruptedException {
@@ -146,28 +151,33 @@ public class ByBitRequestService {
     public void alternativeByBitTest() throws InterruptedException {
         int bestListSize = 30;
         double bestAccuracy = 0d;
-
+        long month = 2629800000L;
+        long timeNow = System.currentTimeMillis();
         int[] variables = new int[]{64, 71, 73};
+        List<ItemHistory> historyList = new ArrayList<>();
+
+        for (int j = 0; j < 12; j++) {
+            long endTime = timeNow - j * month;
+            long startTime = endTime - (j + 1) * month;
+
+            historyList.addAll(getItemHistoryForCurrencies(marketInterval, startTime, endTime));
+        }
+
+        Gson gson = new Gson();
+        String json = gson.toJson(historyList);
+        TestDataEntity testDataEntity = new TestDataEntity(json);
+        testDataRepository.save(testDataEntity);
+
         for (int i = 0; i < 3; i++) {
             int listSize = variables[i];
-            List<ItemHistory> historyList = new ArrayList<>();
 
             System.out.println("ТЕСТИРОВАНИЕ ТОЧНОСТИ ПРЕДСКАЗАНИЯ ДЛЯ BNB");
             System.out.println("Количество точек: " + listSize);
             System.out.println("Формат графика: " + marketInterval);
 
-            long month = 2629800000L;
-            long timeNow = System.currentTimeMillis();
             int total = 0;
             int allNum = 0;
             int successNum = 0;
-            for (int j = 0; j < 12; j++) {
-                long endTime = timeNow - j * month;
-                long startTime = endTime - (j + 1) * month;
-
-                historyList.addAll(getItemHistoryForCurrencies(marketInterval, startTime, endTime));
-            }
-
             for (int j = listSize; j < historyList.size(); j++) {
                 total += 1;
 
@@ -193,7 +203,7 @@ public class ByBitRequestService {
                 double predictAcc = prediction.chance();
                 double actualAcc = (double) successNum / allNum;
                 SecondTestEntity secondTestEntity = new SecondTestEntity(time, predicted, actual, priceChange, predictAcc, actualAcc);
-                secondTestEntityRepository.save(secondTestEntity);
+                secondTestRepository.save(secondTestEntity);
 
                 if (success) {
                     successNum++;
